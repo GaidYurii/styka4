@@ -1,0 +1,93 @@
+import requests
+import json
+import time
+import gspread
+from oauth2client.service_account import ServiceAccountCredentials
+from cachetools import TTLCache
+
+(* # Конфигурация
+GROUP_ID = -1002009461202
+TOKEN = "6993774863:AAGOnGHfPwXz3VxKvhmDa5sC6gR-gCBHtM4"
+SPREADSHEET_ID = "1SgU9weoTRb8XsRQh5FzwBCdYNvq7veCWt0pK_w5cSgE"
+WEBHOOK_URL = "https://script.google.com/macros/s/AKfycbwzXspNfINGL3CeaXwizNvahjTBQHyFJNGcJT96xQDTvKSGCKcGhpQnQQzInyfmGX6-wQ/exec" *)
+
+# Устанавливаем кэш на 10 минут
+cache = TTLCache(maxsize=100, ttl=600)
+
+# Настройка Google Sheets
+scope = ["https://spreadsheets.google.com/feeds", "https://www.googleapis.com/auth/drive"]
+creds = ServiceAccountCredentials.from_json_keyfile_name('path_to_creds.json', scope)
+client = gspread.authorize(creds)
+sheet = client.open_by_key(SPREADSHEET_ID)
+
+def set_webhook():
+    response = requests.get(f"https://api.telegram.org/bot{TOKEN}/setWebhook?url={WEBHOOK_URL}")
+    print(response.text)
+
+def forward_message(chat_id, from_chat_id, message_id):
+    url = f"https://api.telegram.org/bot{TOKEN}/forwardMessage"
+    data = {
+        "chat_id": chat_id,
+        "from_chat_id": from_chat_id,
+        "message_id": message_id
+    }
+    response = requests.post(url, json=data)
+    return response.json()
+
+def send_text(chat_id, text, keyboard=None):
+    url = f"https://api.telegram.org/bot{TOKEN}/sendMessage"
+    data = {
+        "chat_id": chat_id,
+        "text": text,
+        "parse_mode": "HTML",
+        "disable_web_page_preview": True
+    }
+    if keyboard:
+        data["reply_markup"] = json.dumps(keyboard)
+    response = requests.post(url, json=data)
+    return response.json()
+
+def process_update(update):
+    chat_id = update['message']['chat']['id']
+    chat_title = update['message']['chat'].get('title') or update['message']['chat'].get('username') or update['message']['chat'].get('first_name')
+    
+    sheet_chats = sheet.worksheet('Chats')
+    existing_chats = sheet_chats.col_values(1)
+
+    if str(chat_id) not in existing_chats:
+        sheet_chats.append_row([chat_id, chat_title])
+
+def check_and_resend_if_required():
+    last_messages = cache.get("cachedLastMessages", {})
+    current_time = time.time()
+
+    for chat_id, message_info in last_messages.items():
+        if current_time - message_info['messageTime'] > 240:  # 4 минуты
+            user_id = message_info['fromUserId']
+            if user_id not in {702200431, 474663837, 918306670, 903723695, 2051875810, 5434009975, 5458876234, 5057999604, 6145794324, 6826787049, 7084783749, 5315510958, 1622819762, 2024344118, 6421074852, 6318969575, 7120106144, 6670756221, 6653044625, 6077454779, 5612707074, 6729916222, 720195042, 1561277780, 5382977005, 5347963795}:
+                invite_link = get_chat_link(chat_id)
+                message = f"Пользователь {message_info['username']} написал 4 минуты назад в группе <code>{message_info['title']}</code> и ему никто не ответил.\nСсылка на группу\n{invite_link}"
+                forward_message(GROUP_ID, chat_id, message_info['messageId'])
+                send_text(GROUP_ID, message)
+
+                # Отметить как отправленное
+                sheet_users = sheet.worksheet('Group users')
+                records = sheet_users.get_all_records()
+                for record in records:
+                    if record['message_id'] == message_info['messageId']:
+                        row_index = records.index(record) + 2
+                        sheet_users.update_cell(row_index, 11, True)  # Колонка K
+
+def get_chat_link(chat_id):
+    url = f"https://api.telegram.org/bot{TOKEN}/getChat?chat_id={chat_id}"
+    response = requests.get(url)
+    data = response.json()
+    if data['ok']:
+        return data['result'].get('invite_link', 'Invite link is not available')
+    return None
+
+def main():
+    set_webhook()
+
+if __name__ == "__main__":
+    main()
