@@ -6,10 +6,10 @@ from oauth2client.service_account import ServiceAccountCredentials
 from cachetools import TTLCache
 
 (* # Конфигурация
-GROUP_ID = -1002009461202
-TOKEN = "6993774863:AAGOnGHfPwXz3VxKvhmDa5sC6gR-gCBHtM4"
-SPREADSHEET_ID = "1SgU9weoTRb8XsRQh5FzwBCdYNvq7veCWt0pK_w5cSgE"
-WEBHOOK_URL = "https://script.google.com/macros/s/AKfycbwzXspNfINGL3CeaXwizNvahjTBQHyFJNGcJT96xQDTvKSGCKcGhpQnQQzInyfmGX6-wQ/exec" *)
+GROUP_ID = ___
+TOKEN = "___"
+SPREADSHEET_ID = "___"
+WEBHOOK_URL = "https://script.google.com/macros/s/___/exec" *)
 
 # Устанавливаем кэш на 10 минут
 cache = TTLCache(maxsize=100, ttl=600)
